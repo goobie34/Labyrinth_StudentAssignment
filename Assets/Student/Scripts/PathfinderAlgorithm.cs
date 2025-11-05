@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.VisualScripting;
@@ -51,7 +52,7 @@ public static class PathfindingAlgorithm
             for (int y = 0; y < mapData.Height; y++)
             {
                 distanceTo.Add(new Vector2Int(x, y), float.PositiveInfinity);
-                edgeTo.Add( new Vector2Int(x, y), null);
+                edgeTo.Add(new Vector2Int(x, y), null);
             }
         }
 
@@ -60,19 +61,23 @@ public static class PathfindingAlgorithm
 
         while(priorityQueue.Count > 0)
         {
+            //.Pop() from priorityQueue
             var currentNodeTuple = priorityQueue.Min;
             priorityQueue.Remove(currentNodeTuple);
 
-            //this line reduces the amount of loops by about 30%, ignore queue item if we already found a faster path to this node
-            if (distanceTo[currentNodeTuple.pos] < currentNodeTuple.distance) { continue; }
+            //this line reduces the amount of loops by about 30% (or more), ignores queue item if we already found a faster path to this node
+            //OR if the distance to this node is greater than the distance to the goal node (if that is true, this cannot be a viable path)
+            if (distanceTo[currentNodeTuple.pos] < currentNodeTuple.distance || distanceTo[currentNodeTuple.pos] > distanceTo[goal]) { continue; }
 
             Vector2Int currentNode = currentNodeTuple.pos;
 
-            foreach (var adjNode in AdjacentNodes(currentNode, mapData))
+            foreach (Vector2Int adjNode in AdjacentNodes(currentNode, mapData))
             {
+                //cost of going from currentNode to adjNode
                 float edgeCost = GetCost(currentNode, adjNode, mapData);
 
-                if (distanceTo[currentNode] + edgeCost < distanceTo[adjNode])
+                if (distanceTo[currentNode] + edgeCost < distanceTo[adjNode]    //is this path to adjNode shorter than any previously discovered?
+                    && distanceTo[currentNode] + edgeCost < distanceTo[goal])   //is this path to adjNode shorter than any discovered path to the goal? if not --> adjNode is not on shortest path to goal
                 {
                     distanceTo[adjNode] = distanceTo[currentNode] + edgeCost;
                     edgeTo[adjNode] = currentNode;
@@ -96,7 +101,6 @@ public static class PathfindingAlgorithm
             {
                 result = nodeA.position.x.CompareTo(nodeB.position.x);
                 if (result == 0)    //if distance and x-coordinate are both same between two nodes, sort by y-coordinate 
-
                 {
                     result = nodeA.position.y.CompareTo(nodeB.position.y);
                 }
@@ -112,6 +116,7 @@ public static class PathfindingAlgorithm
         return distanceTo[node] < float.PositiveInfinity;
     } 
 
+    //returns a list of positions that represent a path from the startNode to the targetNode
     private static List<Vector2Int> PathTo(Vector2Int targetNode, Vector2Int startNode, Dictionary<Vector2Int, float> distanceTo, Dictionary<Vector2Int, Vector2Int?> edgeTo)
     {
         if (!HasPathTo(targetNode, distanceTo)) return null;
@@ -129,7 +134,7 @@ public static class PathfindingAlgorithm
     public static bool IsMovementBlocked(Vector2Int from, Vector2Int to, IMapData mapData)
     {
         //check if "to"-node is outside labyrinth bounds
-        if(to.x < 0 || to.x >= mapData.Width || to.y < 0 || to.y >= mapData.Height)
+        if (to.x < 0 || to.x >= mapData.Width || to.y < 0 || to.y >= mapData.Height)
         {
             return true;
         }
@@ -142,42 +147,6 @@ public static class PathfindingAlgorithm
         {
             return true;
         }
-    }
-
-    private static List<Vector2Int> AdjacentNodes(Vector2Int currentNode, IMapData mapData)
-    {
-        List<Vector2Int> adj = new();
-        
-        //add up, down, left, right neighbours
-        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.up, mapData))
-        {
-            adj.Add(currentNode + Vector2Int.up);
-        }
-
-        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.right, mapData))
-        {
-            adj.Add(currentNode + Vector2Int.right);
-        }
-
-        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.down, mapData))
-        {
-            adj.Add(currentNode + Vector2Int.down);
-        }
-
-        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.left, mapData))
-        {
-            adj.Add(currentNode + Vector2Int.left);
-        }
-
-        //add neighbours connected by vents
-        if (mapData.HasVent(currentNode.x, currentNode.y))
-        {
-            var otherVents = mapData.GetOtherVentPositions(currentNode);
-
-            foreach (var vent in otherVents) { adj.Add(vent); }
-        }
-
-        return adj;
     }
 
     //returns the cost of moving between two nodes, float.PositiveInfinity if movement between nodes is not possible
@@ -195,21 +164,65 @@ public static class PathfindingAlgorithm
         {
             cost = mapData.GetVerticalWallCost(to.x, to.y);
         }
-        if (difference == Vector2Int.down)
+        else if (difference == Vector2Int.down)
         {
             cost = mapData.GetHorizontalWallCost(from.x, from.y);
         }
-        if (difference == Vector2Int.left)
+        else if (difference == Vector2Int.left)
         {
             cost = mapData.GetVerticalWallCost(from.x, from.y);
         }
 
         //vents
-        if (mapData.HasVent(from.x, from.y) && mapData.HasVent(to.x, to.y))
+        else if (mapData.HasVent(from.x, from.y) && mapData.HasVent(to.x, to.y))
         {
             cost = mapData.GetVentCost(from.x, from.y);
         }
 
         return cost;
+    }
+
+    private static List<Vector2Int> AdjacentNodes(Vector2Int currentNode, IMapData mapData)
+    {
+        List<Vector2Int> adj = new();
+        Vector2Int?[] immediateNeighbours = new Vector2Int?[4];
+         
+        //add up, down, left, right neighbours
+        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.up, mapData))
+        {
+            adj.Add(currentNode + Vector2Int.up);
+            immediateNeighbours[0] = currentNode + Vector2Int.up;
+        }
+        
+        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.right, mapData))
+        {
+            adj.Add(currentNode + Vector2Int.right);
+            immediateNeighbours[1] = currentNode + Vector2Int.right;
+        }
+
+        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.down, mapData))
+        {
+            adj.Add(currentNode + Vector2Int.down);
+            immediateNeighbours[2] = currentNode + Vector2Int.down;
+        }
+
+        if (!IsMovementBlocked(currentNode, currentNode + Vector2Int.left, mapData))
+        {
+            adj.Add(currentNode + Vector2Int.left);
+            immediateNeighbours[3] = currentNode + Vector2Int.left;
+        }
+
+        //add neighbours connected by vents
+        if (mapData.HasVent(currentNode.x, currentNode.y))
+        {
+            var otherVents = mapData.GetOtherVentPositions(currentNode);
+
+            foreach (var vent in otherVents) {
+                if (!immediateNeighbours.Contains(vent))    //this check is to avoid duplicates when two or more vent-nodes are next to each other on the map
+                    adj.Add(vent);
+            }
+        }
+
+        return adj;
     }
 }
