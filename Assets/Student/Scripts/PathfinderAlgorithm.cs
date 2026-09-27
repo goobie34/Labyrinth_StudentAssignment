@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public static class PathfindingAlgorithm
@@ -10,6 +11,11 @@ public static class PathfindingAlgorithm
         // Most of your solution should be implemented in this method.
 
         Debug.LogWarning("FindShortestPath is not implemented.");
+        EdgeWeightedDigraph graph = new EdgeWeightedDigraph(mapData.Width * mapData.Height);
+
+        int startIndex = GetIndex(start, mapData);
+        int goalIndex = GetIndex(goal, mapData);
+
         return null;
     }
 
@@ -35,4 +41,6 @@ public static class PathfindingAlgorithm
         float horizontalWallCost = mapData.GetHorizontalWallCost(from.x, wallY);
         return float.IsPositiveInfinity(horizontalWallCost) || horizontalWallCost >= float.MaxValue;
     }
+
+    public static int GetIndex(Vector2Int point, IMapData mapData) { return point.x * mapData.Width + point.y; }
 }
