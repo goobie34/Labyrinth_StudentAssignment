@@ -21,6 +21,7 @@ public class DijkstraSP
     private SortedSet<Node> pq;
     public DijkstraSP(EdgeWeightedDigraph G, int s)
     {
+        int whileCount = 0;
         edgeTo = new DirectedEdge[G.V];
         distTo = new int[G.V];
         pq = new SortedSet<Node>();
@@ -34,7 +35,11 @@ public class DijkstraSP
             pq.Remove(min);
             if (min.weight > distTo[min.v]) continue; //needed for lazy delete
             Relax(G, min.v);
+
+            whileCount++;
         }
+
+        UnityEngine.Debug.Log("Number of times through while loop: " + whileCount);
     }
     private void Relax(EdgeWeightedDigraph G, int v)
     {
